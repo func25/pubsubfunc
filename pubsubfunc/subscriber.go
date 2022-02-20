@@ -8,12 +8,15 @@ import (
 	"google.golang.org/api/option"
 )
 
-type ConnectionConfig struct {
+type PubsubConnection struct {
+	Client *pubsub.Client
+	Cmd    ConnectCmd
+}
+
+type ConnectCmd struct {
 	ProjectID string
-	TopicID   string
-	SubID     string
-	Options   []option.ClientOption
 	IsLocal   bool
+	Opts      []option.ClientOption
 }
 
 type Subscriber struct {
@@ -22,6 +25,10 @@ type Subscriber struct {
 }
 
 func (s Subscriber) Subscribe(ctx context.Context, cmd SubscribeCmd) error {
+	if connection.Cmd.IsLocal {
+		return nil
+	}
+
 	return s.Subscription.Receive(ctx, func(ctx context.Context, msg *pubsub.Message) {
 		result := cmd.MsgHandler(msg.Data)
 		if cmd.Callback != nil {
@@ -40,12 +47,16 @@ type SubscribeCmd struct {
 
 // Subscribe creates a connection and handler to handle message that received on subscription
 func Subscribe(ctx context.Context, cmd SubscribeCmd, isBlockThread bool) error {
+	if connection.Cmd.IsLocal {
+		return nil
+	}
+
 	if v, exist := subscribers[cmd.SubId]; exist && v != nil {
 		log.Printf("[warning][pubsub] %v have been existed in keys map\n", cmd.SubId)
 		return nil
 	}
 
-	subscription := client.Subscription(cmd.SubId)
+	subscription := connection.Client.Subscription(cmd.SubId)
 	if ok, err := subscription.Exists(ctx); !ok || err != nil {
 		if err != nil {
 			return err
@@ -76,6 +87,10 @@ func Subscribe(ctx context.Context, cmd SubscribeCmd, isBlockThread bool) error 
 
 // CloseSubscriber, close subscriber's connection
 func CloseSubscriber(subID string) {
+	if connection.Cmd.IsLocal {
+		return
+	}
+
 	subscriber, exist := subscribers[subID]
 	if exist {
 		subscriber.Close()

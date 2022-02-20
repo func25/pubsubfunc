@@ -9,14 +9,18 @@ import (
 var topics = make(map[string]*pubsub.Topic)
 
 func PullTopic(ctx context.Context, topicId string, numGoroutines int) error {
-	topic := client.Topic(topicId)
+	if connection.Cmd.IsLocal {
+		return nil
+	}
+
+	topic := connection.Client.Topic(topicId)
 	exist, err := topic.Exists(ctx)
 	if err != nil {
 		return err
 	} else if !exist {
 		return ErrTopicNotExist
 	} else {
-		topics[topicId] = client.Topic(topicId)
+		topics[topicId] = connection.Client.Topic(topicId)
 		topics[topicId].PublishSettings.NumGoroutines = numGoroutines
 	}
 
@@ -24,6 +28,10 @@ func PullTopic(ctx context.Context, topicId string, numGoroutines int) error {
 }
 
 func PublishMessage(ctx context.Context, topicId string, rawMessage []byte) error {
+	if connection.Cmd.IsLocal {
+		return nil
+	}
+
 	clientTopic, exist := topics[topicId]
 	if !exist {
 		return ErrPublisherNotExist
@@ -38,6 +46,10 @@ func PublishMessage(ctx context.Context, topicId string, rawMessage []byte) erro
 }
 
 func CloseTopic(topicId string) error {
+	if connection.Cmd.IsLocal {
+		return nil
+	}
+
 	clientTopic, exist := topics[topicId]
 	if !exist {
 		return ErrPublisherNotExist
